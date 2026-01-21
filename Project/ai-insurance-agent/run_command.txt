@@ -1,0 +1,1 @@
+Running test_targets file: $env:PYTHONPATH="D:\Design Project\Use Case\Project\ai-insurance-agent" ; poetry run python scripts\test_targets.py

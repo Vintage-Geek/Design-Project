@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlmodel
+sqlalchemy
+pydantic
+pytz
+redis
+langchain
+langchain-openai
+asyncpg
+psycopg-2
+binary
+celery
+twilio
+vapi-py
+deepgram-sdk

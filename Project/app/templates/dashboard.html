@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>9AI Insurance Dashboard</title>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8 border-b pb-4">
+            <h1 class="text-2xl font-bold text-indigo-700">9AI Collection Console</h1>
+        </header>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-100 uppercase text-xs font-bold text-gray-600">
+                    <tr>
+                        <th class="p-4">Customer</th>
+                        <th class="p-4">Disposition</th>
+                        <th class="p-4">AI Summary</th>
+                        <th class="p-4 text-right">Time</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for call in calls %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="p-4 font-medium">{{ call.policy.customer.full_name }}</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 rounded text-xs bg-indigo-100 text-indigo-700 font-bold uppercase">
+                                {{ call.disposition or 'IN-PROGRESS' }}
+                            </span>
+                        </td>
+                        <td class="p-4 text-gray-600 text-sm">{{ call.ai_summary or 'Awaiting summary...' }}</td>
+                        <td class="p-4 text-right text-gray-400 text-xs">{{ call.timestamp.strftime('%H:%M:%S') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
