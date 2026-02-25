@@ -3,24 +3,23 @@ from datetime import datetime, timedelta, date
 from typing import List, Tuple
 
 import pytz
-from sqlmodel import Session, select
+from sqlmodel import Session, select, and_
 
 from app.models import Policy, Customer, CallLog
 from app.database import get_session
-
+from app.services.telephony.vapi_service import start_outbound_call  # NEW IMPORT
 
 class TargetSelector:
     """
     Compliance-first target selection for outbound payment collection calls.
     - Only overdue policies
     - No calls within 24 hours
-    - Local time 7:00 AM – 10:00 PM IST (relaxed for India testing)
+    - Local time 8:00 AM – 9:00 PM (strict)
     - Prioritized by days overdue
     """
 
-    # For testing in India – change to stricter hours in production
-    CALLING_START_HOUR = 7   # 7:00 AM
-    CALLING_END_HOUR = 22    # 10:00 PM (inclusive of 9:59 PM)
+    CALLING_START_HOUR = 8
+    CALLING_END_HOUR = 21  # 9:00 PM exclusive
 
     def __init__(self, session: Session):
         self.session = session
@@ -34,16 +33,10 @@ class TargetSelector:
 
         local_now = datetime.now(tz)
         local_hour = local_now.hour
-        local_minute = local_now.minute
 
-        # Debug print
-        print(f"Time zone {time_zone}: local time = {local_now.strftime('%Y-%m-%d %H:%M:%S %Z')} "
-              f"→ {'ALLOWED' if self.CALLING_START_HOUR <= local_hour < self.CALLING_END_HOUR or 
-                   (local_hour == self.CALLING_END_HOUR and local_minute == 0) else 'BLOCKED'}")
-
-        # Allow calls from 7:00 AM to 9:59 PM
-        return self.CALLING_START_HOUR <= local_hour < self.CALLING_END_HOUR or \
-               (local_hour == self.CALLING_END_HOUR and local_minute == 0)
+        is_allowed = self.CALLING_START_HOUR <= local_hour < self.CALLING_END_HOUR
+        print(f"Time zone {time_zone}: local time = {local_now.strftime('%Y-%m-%d %H:%M:%S %Z')} → {'ALLOWED' if is_allowed else 'BLOCKED'}")
+        return is_allowed
 
     def _get_recently_called_customer_ids(self, hours: int = 24) -> set[int]:
         cutoff = datetime.utcnow() - timedelta(hours=hours)
@@ -55,9 +48,10 @@ class TargetSelector:
         results = self.session.exec(stmt).all()
         return set(results)
 
-    def get_targets(self, limit: int = 50, force_allow: bool = False) -> List[Tuple[str, int, int]]:
+    async def get_targets(self, limit: int = 50, auto_dial: bool = False) -> List[Tuple[str, int, int]]:
         """
-        force_allow=True → ignores time window (for testing only!)
+        Main method: returns eligible targets.
+        If auto_dial=True → immediately starts real calls via Vapi.ai
         """
         today = date.today()
 
@@ -77,11 +71,21 @@ class TargetSelector:
         candidates: List[Tuple[str, int, int]] = []
 
         for policy, customer in results:
-            if force_allow or self._is_within_calling_window(customer.time_zone):
-                days_overdue = policy.calculate_priority_score(today)
-                if days_overdue > 0:
-                    candidates.append((customer.phone, policy.id, days_overdue))
+            if not self._is_within_calling_window(customer.time_zone):
+                continue
+
+            days_overdue = policy.calculate_priority_score(today)
+            if days_overdue <= 0:
+                continue
+
+            candidates.append((customer.phone, policy.id, days_overdue))
 
         candidates.sort(key=lambda x: x[2], reverse=True)
+        selected = candidates[:limit]
 
-        return candidates[:limit]
+        # If auto_dial is enabled → start real outbound calls
+        if auto_dial:
+            for phone, policy_id, _ in selected:
+                await start_outbound_call(phone, policy_id)
+
+        return selected

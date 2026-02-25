@@ -6,27 +6,26 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 class CallOutcome(BaseModel):
-    outcome: str = Field(..., description="One of: paid, promise_to_pay, callback_requested, angry_customer, voicemail, other")
-    promise_date: Optional[str] = Field(None, description="YYYY-MM-DD if explicitly agreed")
+    outcome: str = Field(..., description="paid | promise_to_pay | callback_requested | angry_customer | voicemail | other")
+    promise_date: Optional[str] = Field(None, description="YYYY-MM-DD if agreed")
     confidence: float = Field(..., ge=0, le=1)
 
 parser = JsonOutputParser(pydantic_object=CallOutcome)
 
 prompt = PromptTemplate.from_template(
     """
-    Classify the final outcome from the call transcript.
+    Classify the final call outcome from transcript.
     Rules:
-    - "paid" → only if payment was completed during call
-    - "promise_to_pay" → only if specific date was agreed
+    - "paid" → payment confirmed during call
+    - "promise_to_pay" → specific date agreed
     - "callback_requested" → customer asked for later call
-    - "angry_customer" → strong negative emotion or threats
-    - "voicemail" → no live person reached
+    - "angry_customer" → strong negative emotion/threats
+    - "voicemail" → no live person
     - "other" → fallback
 
-    Transcript:
-    {transcript}
+    Transcript: {transcript}
 
-    Return ONLY valid JSON matching this schema:
+    Return ONLY valid JSON:
     {format_instructions}
     """
 )
